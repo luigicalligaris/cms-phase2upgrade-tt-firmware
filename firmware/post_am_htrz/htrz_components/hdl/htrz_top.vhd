@@ -1,15 +1,33 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
+use ieee.math_real.all;
 
 
-package ht_data_types is
-
-  constant zT_width           : integer := 12;
-  constant zT_increment_width : integer := 12;
+package htrz_constants is
+  constant width_r  : natural := 12;
+  constant width_rT : natural := 12;
   
-  constant nbins_zT         : integer := 8;
-  constant nbins_cotantheta : integer := 8;
+  constant nbins_zT    : integer :=  8;
+  constant width_zT    : natural := 12;
+  constant min_zT      : real := -15.0;
+  constant max_zT      : real :=  15.0;
+  constant base_zT_bin : (max_zT - min_zT)/real(nbins_zT);
+  
+  constant nbins_cotantheta    : integer :=  8;
+  constant width_cotantheta    : natural := 12;
+  constant min_cotantheta      : real := -0.5;
+  constant max_cotantheta      : real :=  1.0;
+  constant base_cotantheta_bin : real := (max_cotantheta - min_cotantheta)/real(nbins_cotantheta);
+  
+  constant width_zG : integer := 12;
+  constant base_zG  : real := (base_zT_bin/base_cotantheta_bin) * ( 2.0 ** (width_zG - 1) );
+  
+  
+  
+end;
+
+package htrz_data_types is
   
   -- This is a nameplace for the record (tbd)
   type t_stub  is std_logic_vector(65 downto 0);
@@ -20,7 +38,7 @@ package ht_data_types is
   
   type t_zT is 
   record
-    zT_lo : std_logic_vector( zT_width - 1 downto 0 );
+    zT_lo : std_logic_vector( width_zT - 1 downto 0 );
     underflow_hi : std_logic;
     underflow_lo : std_logic;
     overflow_hi  : std_logic;
@@ -89,6 +107,7 @@ begin
   
   
   
+  zT_right <= zT_left;
   
   process( clk )s
   begin
@@ -103,7 +122,7 @@ begin
       validbins_out    <= validbins_shift2;  -- LOCALCLK 3
       
       -- This column fill its own validity bits in the HT matrix (null algo for now)
-      validbins_shift2[ibin_cotantheta] <= null_stubvalid_column; -- LOCALCLK 2
+      validbins_shift2[ibin_cotantheta] <= validbins_thiscolumn; -- LOCALCLK 2
       
       
     end if;
