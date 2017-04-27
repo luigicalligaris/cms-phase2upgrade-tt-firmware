@@ -293,6 +293,9 @@ end;
 
 architecture rtl of ht_gradient_unit is
 
+
+attribute ram_style of stubIDRam: signal is "block";
+
 begin
   process( clk )
   begin
@@ -303,3 +306,114 @@ begin
 end;
 
 end;
+
+
+
+
+
+
+
+entity ht_road_ring_delay is
+generic(
+    delay : natural,
+  );
+  port(
+    road_in  :  in t_road;
+    road_out : out t_road;
+  );
+  attribute ram_style: string;
+  attribute use_dsp48: string;
+end;
+
+
+architecture rtl of ht_road_delay is
+  
+  -- These numbers are FPGA-specific, consult the FPGA memory user guide to find out the RAM depth
+  constant min_delay : natural := 1 + 1 +   0 + 1 + 1; -- {write into BRAM input reg} + {write into BRAM} + {BRAM ring delay} + {read BRAM & write into BRAM output reg} + {write to output}
+  constant max_delay : natural := 1 + 1 + 511 + 1 + 1; -- {write into BRAM input reg} + {write into BRAM} + {BRAM ring delay} + {read BRAM & write into BRAM output reg} + {write to output}
+  
+  assert delay <   4 report   "Delay is too small for this component" severity error;
+  assert delay > 515 report "Delay is too long for this component" severity error;
+  
+  constant ring_delay : natural := delay - 4;
+  constant ram_pointer_width : natural := 9;
+  
+  -- Total 36 bits
+  type t_stub_ram0 is 
+  record
+    Ri : std_logic_vector(width_rS     - 1 downto 0);
+    z  : std_logic_vector(width_zS     - 1 downto 0);
+  end record;
+  
+  constant null_stub_ram0 : t_stub_ram0 := ( Ri => (others => '0'), z => (others => '0') );
+  
+  -- Total 30 bits
+  type t_stub_ram1 is 
+  record
+    valid   : std_logic;
+    phi     : std_logic_vector(width_phi    - 1 downto 0);
+    Bend    : std_logic_vector(width_bend   - 1 downto 0);
+    Sindex  : std_logic_vector(width_Sindex - 1 downto 0);
+  end record;
+  
+  constant null_stub_ram1 : t_stub_ram1 := ( valid => '0', phi => (others => '0'), Bend => (others => '0'), Sindex => (others => '0'), );
+  
+  
+  signal stub_writereg_ram0 : t_stub_ram0 := null_stub_ram0;
+  signal stub_writereg_ram1 : t_stub_ram1 := null_stub_ram1;
+  
+  signal stub_readreg_ram0  : t_stub_ram0 := null_stub_ram0;
+  signal stub_readreg_ram1  : t_stub_ram1 := null_stub_ram1;
+  
+  signal write_pointer : std_logic_vector(2 ** ram_pointer_width - 1 downto 0) := std_logic_vector( unsigned( ring_delay ) );
+  signal read_pointer  : std_logic_vector(2 ** ram_pointer_width - 1 downto 0) := std_logic_vector( unsigned(          0 ) );
+  
+  type t_ringbuffer_ram0 is array ( natural range <> ) of t_stub_ram0;
+  type t_ringbuffer_ram1 is array ( natural range <> ) of t_stub_ram1;
+  
+  signal ringbuffer_ram0: t_bufferRam_ram0( 2 ** ram_pointer_width - 1 downto 0 ) := ( others => null_stub_ram0 );
+  signal ringbuffer_ram1: t_bufferRam_ram1( 2 ** ram_pointer_width - 1 downto 0 ) := ( others => null_stub_ram1 );
+  
+  attribute ram_style of ringbuffer_ram0: signal is "block";
+  attribute ram_style of ringbuffer_ram1: signal is "block";
+begin
+  process( clk )
+  begin
+    if rising_edge( clk ) then
+      
+      -- Repack input into write register
+      stub_writereg_ram0.Ri     <= road_in.Ri    ;
+      stub_writereg_ram0.z      <= road_in.z     ;
+      stub_writereg_ram1.valid  <= road_in.valid ;
+      stub_writereg_ram1.phi    <= road_in.phi   ;
+      stub_writereg_ram1.Bend   <= road_in.Bend  ;
+      stub_writereg_ram1.Sindex <= road_in.Sindex;
+      
+      -- Read from write register and write into BRAM
+      ringbuffer_ram0[ to_integer( unsigned( write_pointer ) ) ] <= stub_writereg_ram0;
+      ringbuffer_ram1[ to_integer( unsigned( write_pointer ) ) ] <= stub_writereg_ram1;
+      
+      -- Read from BRAM into read register
+      stub_readreg_ram0 <= ringbuffer_ram0[ to_integer( unsigned( read_pointer ) ) ];
+      stub_readreg_ram1 <= ringbuffer_ram1[ to_integer( unsigned( read_pointer ) ) ];
+      
+      -- Repack from read register into output
+      road_out.Ri     <= stub_writereg_ram0.Ri    ;
+      road_out.z      <= stub_writereg_ram0.z     ;
+      road_out.valid  <= stub_writereg_ram1.valid ;
+      road_out.phi    <= stub_writereg_ram1.phi   ;
+      road_out.Bend   <= stub_writereg_ram1.Bend  ;
+      road_out.Sindex <= stub_writereg_ram1.Sindex;
+      
+      -- Move one step further
+      write_pointer <= std_logic_vector( unsigned( write_pointer ) + 1 ) if unsigned( write_pointer ) < ring_delay else std_logic_vector( unsigned( 0 ) );
+      read_pointer  <= std_logic_vector( unsigned( read_pointer  ) + 1 ) if unsigned( read_pointer  ) < ring_delay else std_logic_vector( unsigned( 0 ) );
+      
+    end if;
+  end process;
+end;
+
+end;
+
+
+
