@@ -130,6 +130,10 @@ end;
 -- end;
 
 
+
+
+
+
 entity ht_stub_column is
 generic(
     ibin_cotantheta : natural,
@@ -313,27 +317,28 @@ end;
 
 
 
-entity ht_road_ring_delay is
+entity ht_stub_ring_delay is
 generic(
     delay : natural,
   );
   port(
-    road_in  :  in t_road;
-    road_out : out t_road;
+    clk      :  in std_logic;
+    stub_in  :  in t_stub;
+    stub_out : out t_stub;
   );
   attribute ram_style: string;
   attribute use_dsp48: string;
 end;
 
 
-architecture rtl of ht_road_delay is
+architecture rtl of ht_stub_ring_delay is
   
   -- These numbers are FPGA-specific, consult the FPGA memory user guide to find out the RAM depth
   constant min_delay : natural := 1 + 1 +   0 + 1 + 1; -- {write into BRAM input reg} + {write into BRAM} + {BRAM ring delay} + {read BRAM & write into BRAM output reg} + {write to output}
   constant max_delay : natural := 1 + 1 + 511 + 1 + 1; -- {write into BRAM input reg} + {write into BRAM} + {BRAM ring delay} + {read BRAM & write into BRAM output reg} + {write to output}
   
-  assert delay <   4 report   "Delay is too small for this component" severity error;
-  assert delay > 515 report "Delay is too long for this component" severity error;
+  assert delay < min_delay report "Delay is too small for this component" severity error;
+  assert delay > max_delay report "Delay is too long for this component to use on-chip BRAMS" severity error;
   
   constant ring_delay : natural := delay - 4;
   constant ram_pointer_width : natural := 9;
@@ -406,14 +411,66 @@ begin
       road_out.Sindex <= stub_writereg_ram1.Sindex;
       
       -- Move one step further
-      write_pointer <= std_logic_vector( unsigned( write_pointer ) + 1 ) if unsigned( write_pointer ) < ring_delay else std_logic_vector( unsigned( 0 ) );
-      read_pointer  <= std_logic_vector( unsigned( read_pointer  ) + 1 ) if unsigned( read_pointer  ) < ring_delay else std_logic_vector( unsigned( 0 ) );
+      write_pointer <= std_logic_vector( unsigned( write_pointer ) + 1 ) when unsigned( write_pointer ) < ring_delay else std_logic_vector( unsigned( 0 ) );
+      read_pointer  <= std_logic_vector( unsigned( read_pointer  ) + 1 ) when unsigned( read_pointer  ) < ring_delay else std_logic_vector( unsigned( 0 ) );
       
     end if;
   end process;
 end;
 
+
+
+
+entity ht_road_ring_delay is
+generic(
+    delay : natural,
+  );
+  port(
+    clk      :  in std_logic;
+    road_in  :  in t_road;
+    road_out : out t_road;
+  );
+  attribute ram_style: string;
+  attribute use_dsp48: string;
 end;
 
 
-
+architecture rtl of ht_road_ring_delay is
+  
+  component ht_stub_ring_delay
+  generic(
+      delay : natural,
+    );
+    port(
+      clk      :  in std_logic;
+      stub_in  :  in t_stub;
+      stub_out : out t_stub;
+    );
+    attribute ram_style: string;
+    attribute use_dsp48: string;
+  end;
+  
+begin
+  gen_layers: for iLayer in 0 to n_layers - 1 generate
+    signal stubs_in_this_layer_in  : t_roadlayer := null_roadlayer;
+    signal stubs_in_this_layer_out : t_roadlayer := null_roadlayer;
+  begin
+    
+    stubs_in_this_layer_in  <= road_in [iLayer];
+    road_out[iLayer]        <= stubs_in_this_layer_out;
+    
+    gen_stubs: for iStub in 0 to n_stubs_per_roadlayer - 1 generate
+      signal this_stub_in  : t_stub := null_stub;
+      signal this_stub_out : t_stub := null_stub;
+    begin
+      
+      this_stub_in                   <= stubs_in_this_layer_in[iStub];
+      stubs_in_this_layer_out[iStub] <= this_stub_out;
+      
+      stubdelay_instance: ht_stub_ring_delay
+      generic map ( delay )
+      port map (clk, this_stub_in, this_stub_out);
+      
+    end generate;
+  end generate;
+end;
