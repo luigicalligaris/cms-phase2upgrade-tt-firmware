@@ -51,6 +51,8 @@ package htrz_constants is
 end;
 
 
+
+
 package htrz_data_types is
   type t_stub is 
   record
@@ -62,8 +64,7 @@ package htrz_data_types is
     Sindex:   std_logic_vector(width_Sindex - 1 downto 0);
   end record;
   
-  constant null_stub : t_stub := 
-    ('0', (others => '0'), (others => '0'), (others => '0'), (others => '0'), (others => '0'));
+  constant null_stub : t_stub := ('0', (others => '0'), (others => '0'), (others => '0'), (others => '0'), (others => '0'));
   
   
   type t_stub_no_z is 
@@ -75,8 +76,7 @@ package htrz_data_types is
     Sindex:   std_logic_vector(width_Sindex - 1 downto 0);
   end record;
   
-  constant null_stub_no_z : t_stub_no_z := 
-    ('0', (others => '0'), (others => '0'), (others => '0'), (others => '0'));
+  constant null_stub_no_z : t_stub_no_z := ('0', (others => '0'), (others => '0'), (others => '0'), (others => '0'));
   
   
   type t_roadlayer is array (n_stubs_per_roadlayer - 1 downto 0) of t_stub;
@@ -85,49 +85,147 @@ package htrz_data_types is
   type t_road is array (n_layers - 1 downto 0) of t_roadlayer;
   constant null_road : t_road := (others => null_roadlayer)
   
---   type t_zS is std_logic_vector(zS_width - 1 downto 0);
---   constant null_zS : t_zS := (others => '0');
   
---   type t_zC is std_logic_vector(zC_width - 1 downto 0);
---   constant null_zC : t_zC := (others => '0');
+  type t_valid_column is std_logic_vector(nbins_zT - 1 downto 0);
+  constant null_valid_column : t_valid_column := (others => '0');
   
---   type t_zG is std_logic_vector(zG_width - 1 downto 0);
---   constant null_zG : t_zG := (others => '0');
+  type t_valid_cell_matrix is array (nbins_cotantheta - 1 downto 0) of t_valid_column;
+  constant null_valid_cell_matrix := ( others => null_valid_column );
   
---   type t_zT is std_logic_vector(zT_width - 1 downto 0);
---   constant null_zT : t_zT := (others => '0');
+  type t_valid_cell_matrixarray is array (natural range<>) of t_valid_cell_matrix;
+--   constant null_valid_cell_matrixarray := ( others => null_valid_cell_matrix );
   
   
-  type t_stubvalid_column is std_logic_vector(nbins_zT - 1 downto 0);
-  constant null_stubvalid_column : t_stubvalid_column := (others => '0');
+  type t_valid_border_matrix is array (nboundaries_cotantheta - 1 downto 0) of t_valid_column;
+  constant null_stubvalid_bordermatrix := ( others => null_valid_column );
   
-  type t_stubvalid_cellmatrix is array (nbins_cotantheta - 1 downto 0) of t_stubvalid_column;
-  constant null_stubvalid_cellmatrix := ( others => null_stubvalid_column );
-  
-  type t_stubvalid_bordermatrix is array (nbins_cotantheta downto 0) of t_stubvalid_column;
-  constant null_stubvalid_bordermatrix := ( others => null_stubvalid_column );
 end;
 
 
--- entity ht_preprocessor is
--- generic(
---     ibin_cotantheta   : natural,
---     t_radius          : real    :=  64.0,
---     zC                : real    := -25.0,
---     min_zT            : real    := -12.0,
---     max_zT            : real    :=  62.0,
---     min_cotantheta    : real    :=  -0.5,
---     max_cotantheta    : real    :=   1.0,
--- );
--- end;
--- 
--- architecture rtl of ht_preprocessor is
---   constant binwidth_zT         : real := (max_zT - min_zT)/real(nbins_zT);
---   constant binwidth_cotantheta : real := (max_cotantheta - min_cotantheta)/real(nbins_cotantheta);
---   t_stubvalid_bordermatrix
---   constant int_t_radius        : 
--- begin
--- end;
+
+
+
+
+entity ht_stub_cell_validity_block is
+  port (
+    clk              :  in std_logic;
+    valid_borders_in :  in t_valid_border_matrix;
+    valid_cells_out  : out t_valid_cell_matrix;
+  );
+  attribute ram_style: string;
+  attribute use_dsp48: string;
+end;
+
+
+architecture rtl of ht_stub_cell_validity_block is 
+  signal local1_valid_borders     : t_valid_border_matrix := null_stubvalid_bordermatrix;
+  signal local2_valid_cell_matrix : t_valid_cell_matrix   := null_valid_cell_matrix;
+begin
+  
+  valid_cells_out <= local2_valid_cell_matrix;
+  
+  process( clk )
+  begin
+    if rising_edge( clk ) then
+      
+      -- LOCALCLK 1
+      local1_valid_borders <= valid_borders_in;
+      
+      -- LOCALCLK 2
+      for iZtRow in 0 to nbins_zT - 1 loop
+        for iCellColumn in 0 to nbins_cotantheta loop
+          
+          
+          -- LOOSE ACCEPTANCE POLICY (recommended)
+          -- B  C  B
+          -- --------
+          -- 0| 0 |0
+          -- 1| 1 |0
+          -- 1| 1 |1
+          -- 0| 1 |1
+          -- 0| 0 |0
+          
+          local2_valid_cell_matrix[iCellColumn][iZtRow] <= local1_valid_borders[iCellColumn][iZtRow] or local1_valid_borders[iCellColumn + 1][iZtRow];
+          
+--           -- TIGHT ACCEPTANCE POLICY
+          -- B  C  B
+          -- --------
+          -- 0| 0 |0
+          -- 1| 0 |0
+          -- 1| 1 |1
+          -- 0| 0 |1
+          -- 0| 0 |0
+--           
+--           local2_valid_cell_matrix[iCellColumn][iZtRow] <= local1_valid_borders[iCellColumn][iZtRow] and local1_valid_borders[iCellColumn + 1][iZtRow];
+          
+          
+          -- NOTE: In case the stub line gradients are above 1, i.e. the jump can be larger than one cell up/down, you will have also to manage the case 
+          -- highlighted by the ? below. For this reason, gradients equal or below 1 make the firmware simpler.
+          -- 
+          -- B  C  B
+          -- --------
+          -- 1| 0 |0
+          -- 1| ? |0
+          -- 0| ? |0
+          -- 0| ? |1
+          -- 0| 0 |1
+          
+        end loop;
+      end loop;
+    end if;
+  end process;
+end;
+
+
+
+
+entity ht_layer_cell_validity_block is
+  port (
+    clk                   :  in std_logic;
+    stubs_cellmatrices_in :  in t_valid_cell_matrixarray(n_stubs_per_roadlayer - 1 downto 0);
+    layer_cells_out       : out t_valid_cell_matrix;
+  );
+  attribute ram_style: string;
+  attribute use_dsp48: string;
+end;
+
+
+architecture rtl of ht_stub_cell_validity_block is 
+  signal local1_stubs_cellmatrices : t_valid_cell_matrixarray(n_stubs_per_roadlayer - 1 downto 0) := ( others => null_valid_cell_matrix );
+  signal local2_layer_cells        : t_valid_cell_matrix                                          := null_valid_cell_matrix;
+begin
+  
+  layer_cells_out <= local2_layer_cells;
+  
+  process( clk )
+  begin
+    if rising_edge( clk ) then
+      local1_stubs_cellmatrices <= stubs_cellmatrices_in;
+    end if;
+  end process;
+  
+  
+  gen_cols: for iCellColumn in 0 to nbins_cotantheta generate
+    gen_rows : for iZtRow in 0 to nbins_zT - 1 generate
+      signal thiscell_stubs_validity : std_logic_vector(n_stubs_per_roadlayer - 1 downto 0) := ( others => '0');
+    begin
+      -- This is just rewiring...
+      gen_layers : for iStub in 0 to n_stubs_per_roadlayer generate
+        thiscell_stubs_validity[iStub] <= local1_stubs_cellmatrices[iStub][iCellColumn][iZtRow];
+      end generate;
+      
+      process( clk )
+      begin
+        if rising_edge( clk ) then
+          -- This is VHDL-2008 compliant
+          local2_layer_cells[iCellColumn][iZtRow] = or cell_stubs_validity;
+        end if;
+      end process;
+      
+    end generate;
+  end generate;
+end;
+
 
 
 
@@ -146,20 +244,10 @@ generic(
     zT_lo_out    : out std_logic_vector(zT_width - 1 downto 0);
     zT_hi_out    : out std_logic_vector(zT_width - 1 downto 0);
     
---     zT_lo_underflow_in  : in std_logic;
---     zT_lo_overflow_in   : in std_logic;
---     zT_hi_underflow_in  : in std_logic;
---     zT_hi_overflow_in   : in std_logic;
---     
---     zT_lo_underflow_out : out std_logic;
---     zT_lo_overflow_out  : out std_logic;
---     zT_hi_underflow_out : out std_logic;
---     zT_hi_overflow_out  : out std_logic;
-    
     zG_in        :  in std_logic_vector(zG_width - 1 downto 0);
     zG_out       : out std_logic_vector(zG_width - 1 downto 0);
     
-    delayed_stubvalid_column_out : out t_stubvalid_column;
+    delayed_stubvalid_column_out : out t_valid_column;
   );
 
 
@@ -177,10 +265,6 @@ architecture rtl of ht_stub_column is
   signal local1_zG                 : std_logic_vector(zG_width - 1 downto 0) := (others => '0');
   signal local2_zG                 : std_logic_vector(zG_width - 1 downto 0) := (others => '0');
   
---   signal local1_zT_lo_underflow_left : std_logic;
---   signal local1_zT_lo_overflow_left  : std_logic;
---   signal local1_zT_hi_underflow_left : std_logic;
---   signal local1_zT_hi_overflow_left  : std_logic;
   
   -- LOCALCLK 2
   signal local2_zT_lo_right     : std_logic_vector(zT_width - 1 downto 0) := (others => '0');
@@ -194,13 +278,13 @@ architecture rtl of ht_stub_column is
 --   signal local2_zT_hi_underflow_right : std_logic;
 --   signal local2_zT_hi_overflow_right  : std_logic;
   
-  signal stubvalid_column : t_stubvalid_column => null_stubvalid_column;
+  signal stubvalid_column : t_valid_column => null_valid_column;
   
   constant delay_stubvalid_column : natural := ( (nbins_cotantheta - 1) - ibin_cotantheta ) * 2;
   
-  type t_shiftreg_stubvalid_column is array ( natural range<> ) of t_stubvalid_column;
+  type t_shiftreg_stubvalid_column is array ( natural range<> ) of t_valid_column;
   
-  signal shiftreg_stubvalid_column : t_shiftreg_stubvalid_column (delay_stubvalid_column downto 0) := (others => null_stubvalid_column);
+  signal shiftreg_stubvalid_column : t_shiftreg_stubvalid_column (delay_stubvalid_column downto 0) := (others => null_valid_column);
   
 begin
 
@@ -284,7 +368,7 @@ entity ht_gradient_unit is
     
     zG_out       : out std_logic_vector(zG_width - 1 downto 0);
     
-    delayed_stubvalid_column_out : out t_stubvalid_column;
+    delayed_stubvalid_column_out : out t_valid_column;
   );
 
 
@@ -316,6 +400,11 @@ end;
 
 
 
+--
+--
+-- ht_stub_ring_delay.vhd
+--
+--
 
 entity ht_stub_ring_delay is
 generic(
@@ -421,6 +510,12 @@ end;
 
 
 
+--
+--
+-- ht_road_ring_delay.vhd
+--
+--
+
 entity ht_road_ring_delay is
 generic(
     delay : natural,
@@ -451,25 +546,21 @@ architecture rtl of ht_road_ring_delay is
   end;
   
 begin
-  gen_layers: for iLayer in 0 to n_layers - 1 generate
+  gen_layers_in_road: for iLayer in 0 to n_layers - 1 generate
     signal stubs_in_this_layer_in  : t_roadlayer := null_roadlayer;
     signal stubs_in_this_layer_out : t_roadlayer := null_roadlayer;
   begin
-    
     stubs_in_this_layer_in  <= road_in [iLayer];
     road_out[iLayer]        <= stubs_in_this_layer_out;
     
-    gen_stubs: for iStub in 0 to n_stubs_per_roadlayer - 1 generate
+    gen_stubs_in_layer: for iStub in 0 to n_stubs_per_roadlayer - 1 generate
       signal this_stub_in  : t_stub := null_stub;
       signal this_stub_out : t_stub := null_stub;
     begin
-      
       this_stub_in                   <= stubs_in_this_layer_in[iStub];
       stubs_in_this_layer_out[iStub] <= this_stub_out;
       
-      stubdelay_instance: ht_stub_ring_delay
-      generic map ( delay )
-      port map (clk, this_stub_in, this_stub_out);
+      instance_stubdelay: ht_stub_ring_delay generic map ( delay ) port map (clk, this_stub_in, this_stub_out);
       
     end generate;
   end generate;
