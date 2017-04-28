@@ -112,7 +112,7 @@ entity ht_stub_validity_borders2cells is
     clk              :  in std_logic;
     valid_stub_in    :  in std_logic;
     valid_borders_in :  in t_valid_border_matrix;
-    valid_cells_out  : out t_valid_cell_matrix;
+    valid_cells_out  : out t_valid_cell_matrix
   );
   attribute ram_style: string;
   attribute use_dsp48: string;
@@ -139,7 +139,7 @@ begin
   end process;
   
   
-  gen_cols: for iCellColumn in 0 to nbins_cotantheta generate
+  gen_cols: for iCotanColumn in 0 to nbins_cotantheta generate
     gen_rows : for iZtRow in 0 to nbins_zT - 1 generate
       process( clk )
       begin
@@ -156,7 +156,7 @@ begin
           -- 0| 1 |1
           -- 0| 0 |0
           
-          local2_valid_cell_matrix[iCellColumn][iZtRow] <= local1_valid_stub and (local1_valid_borders[iCellColumn][iZtRow] or local1_valid_borders[iCellColumn + 1][iZtRow]);
+          local2_valid_cell_matrix[iCotanColumn][iZtRow] <= local1_valid_stub and (local1_valid_borders[iCotanColumn][iZtRow] or local1_valid_borders[iCotanColumn + 1][iZtRow]);
           
           -- TIGHT ACCEPTANCE POLICY
           -- B  C  B
@@ -167,7 +167,7 @@ begin
           -- 0| 0 |1
           -- 0| 0 |0
           
---           local2_valid_cell_matrix[iCellColumn][iZtRow] <= local1_valid_stub and (local1_valid_borders[iCellColumn][iZtRow] and local1_valid_borders[iCellColumn + 1][iZtRow]);
+--           local2_valid_cell_matrix[iCotanColumn][iZtRow] <= local1_valid_stub and (local1_valid_borders[iCotanColumn][iZtRow] and local1_valid_borders[iCotanColumn + 1][iZtRow]);
           
           
           -- NOTE: In case the stub line gradients are above 1, i.e. the jump can be larger than one cell up/down, you will have also to manage the case 
@@ -196,7 +196,7 @@ entity ht_layer_validity_stubs2layer is
   port (
     clk                   :  in std_logic;
     stubs_cellmatrices_in :  in t_valid_cell_matrixarray(n_stubs_per_roadlayer - 1 downto 0);
-    layer_cells_out       : out t_valid_cell_matrix;
+    layer_cells_out       : out t_valid_cell_matrix
   );
   attribute ram_style: string;
   attribute use_dsp48: string;
@@ -221,28 +221,28 @@ begin
   end process;
   
   
-  gen_cols: for iCellColumn in 0 to nbins_cotantheta generate
+  gen_cols: for iCotanColumn in 0 to nbins_cotantheta generate
     gen_rows : for iZtRow in 0 to nbins_zT - 1 generate
       signal thiscell_stubs_validity : std_logic_vector(n_stubs_per_roadlayer - 1 downto 0) := ( others => '0');
     begin
     
       -- Below is just rewiring the cells into the vector...
-      --       /|        /|        /|        /|
-      --      / |       / |       / |       / |
-      --     /  |      /  |      /  |      /  |
-      --    / 0 |     / 1 |     / 2 |     / 3 |  ---> thiscell_stubs_validity(0,1,2,3) for cell [4,4]
-      --   /    |    /    |    /    |    /    |
-      --  /     |   /     |   /     |   /     |
-      --  |    /    |    /    |    /    |    / 
-      --  | 0 /     | 1 /     | 2 /     | 3 /  ---> thiscell_stubs_validity(0,1,2,3) for cell [2,2]
-      --  |  /      |  /      |  /      |  /
-      --  | /       | /       | /       | /
-      --  |/        |/        |/        |/
-      --  
-      --  Stub0     Stub1     Stub2     Stub3
+      --       /|        /|        /|        /|                                                                                  /|
+      --      / |       / |       / |       / |                                                                                 / |
+      --     /  |      /  |      /  |      /  |                                                                                /  |
+      --    /00 |     /   |     /   |     /   |  ---> thiscell_stubs_validity(0,1,2,3) for cell [4,4]                         /## |
+      --   /   0|    /    |    /    |    /  X |                                                                              /   #|
+      --  /     |   /     |   /     |   /     |                                                      --vec OR reduction-->  /     |
+      --  |    /    |    /    |  2 /    | X  /                                                                              |  # /
+      --  |   /     |   /     | 2 /     |   /  ---> thiscell_stubs_validity(0,1,2,3) for cell [2,2]                         | # /
+      --  |  /      |  /      |2 /      |  /                                                                                |# /
+      --  | /       | /       | /       | /                                                                                 | /
+      --  |/        |/        |/        |/                                                                                  |/
+      --                              e.g. INVALID (therefore, ignored)
+      --  Stub0     Stub1     Stub2     Stub3                                                                      Layer valid cells
       --  
       gen_layers : for iStub in 0 to n_stubs_per_roadlayer generate
-        thiscell_stubs_validity[iStub] <= local1_stubs_cellmatrices[iStub][iCellColumn][iZtRow];
+        thiscell_stubs_validity[iStub] <= local1_stubs_cellmatrices[iStub][iCotanColumn][iZtRow];
       end generate;
       
       
@@ -252,7 +252,7 @@ begin
           
           -- LOCALCLK 2
           -- This is VHDL-2008 compliant
-          local2_layer_cells[iCellColumn][iZtRow] = or thiscell_stubs_validity;
+          local2_layer_cells[iCotanColumn][iZtRow] = or thiscell_stubs_validity;
           
         end if;
       end process;
@@ -266,12 +266,12 @@ end;
 
 entity ht_road_validity_layermajority is
   generic(
-    layercount_threshold : natural := 5;
+    layercount_threshold : natural := 5
   );
   port (
     clk                   :  in std_logic;
     layer_cellmatrices_in :  in t_valid_cell_matrixarray(n_stubs_per_roadlayer - 1 downto 0);
-    road_cells_out        : out t_valid_cell_matrix;
+    road_cells_out        : out t_valid_cell_matrix
   );
   attribute ram_style: string;
   attribute use_dsp48: string;
@@ -316,28 +316,28 @@ begin
   end process;
   
   
-  gen_cols: for iCellColumn in 0 to nbins_cotantheta generate
+  gen_cols: for iCotanColumn in 0 to nbins_cotantheta generate
     gen_rows : for iZtRow in 0 to nbins_zT - 1 generate
       signal thiscell_layer_validity : std_logic_vector(n_layers - 1 downto 0) := ( others => '0');
     begin
     
       -- Below is just rewiring the cells to the vector...
-      --       /|        /|        /|        /|        /|         /|
-      --      / |       / |       / |       / |       / |        / |
-      --     /  |      /  |      /  |      /  |      /  |       /  |
-      --    / 0 |     / 1 |     / 2 |     / 3 |     / 4 |      / 5 |  ---> thiscell_layer_validity(0,1,2,3,4,5) for cell [4,4]
-      --   /    |    /    |    /    |    /    |    /    |     /    |
-      --  /     |   /     |   /     |   /     |   /     |    /     |
-      --  |    /    |    /    |    /    |    /    |    /     |    /
-      --  | 0 /     | 1 /     | 2 /     | 3 /     | 4 /      | 5 /  ---> thiscell_layer_validity(0,1,2,3,4,5) for cell [2,2]
-      --  |  /      |  /      |  /      |  /      |  /       |  /
-      --  | /       | /       | /       | /       | /        | /
-      --  |/        |/        |/        |/        |/         |/
-      --  
-      --  Layer0    Layer1    Layer2    Layer3    Layer4    Layer5
+      --       /|        /|        /|        /|        /|         /|                                                                                /|
+      --      / |       / |       / |       / |       / |        / |                                                                               / |
+      --     /  |      /  |      /  |      /  |      /  |       /  |                                                                              /  |
+      --    / 0 |     / 1 |     / 2 |     / 3 |     /   |      / 5 |  ---> thiscell_layer_validity(0,1,2,3,4,5) for cell [4,4]                   / # |
+      --   /    |    /    |    /    |    /    |    /    |     /    |                                                                            /    |
+      --  /     |   /     |   /     |   /     |   /     |    /     |                                                            --majority-->  /     |
+      --  |    /    |    /    |    /    |    /    |    /     |    /                                                                            |    /
+      --  | 0 /     | 1 /     |   /     | 3 /     | 4 /      | 5 /  ---> thiscell_layer_validity(0,1,2,3,4,5) for cell [2,2]                   | # /
+      --  |  /      |  /      |  /      |  /      |  /       |  /                                                                              |  /
+      --  | /       | /       | /       | /       | /        | /                                                                               | /
+      --  |/        |/        |/        |/        |/         |/                                                                                |/
+      --
+      --  Layer0    Layer1    Layer2    Layer3    Layer4    Layer5                                                                      Road valid cells
       --  
       gen_layers : for iLayer in 0 to n_layers generate
-        thiscell_layer_validity[iLayer] <= local1_layer_cellmatrices[iLayer][iCellColumn][iZtRow];
+        thiscell_layer_validity[iLayer] <= local1_layer_cellmatrices[iLayer][iCotanColumn][iZtRow];
       end generate;
       
       
@@ -347,7 +347,7 @@ begin
           
           -- LOCALCLK 2
           -- This is VHDL-2008 compliant
-          local2_layer_cells[iCellColumn][iZtRow] = majority(thiscell_layer_validity, layercount_threshold);
+          local2_layer_cells[iCotanColumn][iZtRow] = majority(thiscell_layer_validity, layercount_threshold);
           
         end if;
       end process;
@@ -359,13 +359,109 @@ end;
 
 
 
+
+
+entity ht_stub_validity_stub_vs_road is
+  port (
+    clk                   :  in std_logic;
+    road_cells_in         :  in t_valid_cell_matrix;
+    stub_cells_in         :  in t_valid_cell_matrix;
+    stub_valid_cells_out  : out t_valid_cell_matrix;
+    stub_valid_out        : out std_logic
+  );
+  attribute ram_style: string;
+  attribute use_dsp48: string;
+end;
+
+
+architecture rtl of ht_stub_validity_stub_vs_road is 
+  signal local1_road_cells             : t_valid_cell_matrix := null_valid_cell_matrix;
+  signal local1_stub_cells             : t_valid_cell_matrix := null_valid_cell_matrix;
+  signal local2_stub_valid_cells       : t_valid_cell_matrix := null_valid_cell_matrix;
+  signal local2_stub_valid_cells_asvec : std_logic_vector(nbins_cotantheta * nbins_zT - 1 downto 0) := ( others => '0');
+  signal local3_stub_valid_cells       : t_valid_cell_matrix := null_valid_cell_matrix;
+  signal local3_stub_valid             : std_logic := '0';
+  
+  
+begin
+  
+  process( clk )
+  begin
+    if rising_edge( clk ) then
+      
+      -- LOCALCLK 1
+      local1_road_cells <= road_cells_in;
+      local1_stub_cells <= stub_cells_in;
+      
+    end if;
+  end process;
+  
+  
+  gen_cols: for iCotanColumn in 0 to nbins_cotantheta generate
+    gen_rows : for iZtRow in 0 to nbins_zT - 1 generate
+    begin
+      
+      --       /|        /|                                       /|
+      --      / |       / |                                      / |
+      --     /  |      /  |                                     /  |
+      --    / S |     / R |   ---> (S and R) for cell [4,4]    / # |
+      --   /    |    /    |                                   /    |
+      --  /     |   /     |                                  /     |  --> CAST TO std_logic_vector (X*Y bit) --> OR reduce --> stub validity (1 bit)
+      --  |    /    |    /                                   |    /
+      --  | S /     |   /   ---> (S and R) for cell [2,2]    |   /
+      --  |  /      |  /                                     |  /
+      --  | /       | /                                      | /
+      --  |/        |/                                       |/
       --  
+      --  Stub      Road                                Stub AND Road
+      
+      
+      local2_stub_valid_cells_asvec[iCotanColumn * nbins_zT + iZtRow] <= local2_stub_valid_cells[iCotanColumn][iZtRow];
+      
+      process( clk )
+      begin
+        if rising_edge( clk ) then
+          
+          -- LOCALCLK 2
+          -- This is VHDL-2008 compliant
+          local2_stub_valid_cells[iCotanColumn][iZtRow] = local1_road_cells[iCotanColumn][iZtRow] and local1_stub_cells[iCotanColumn][iZtRow];
+          
+        end if;
+      end process;
+      
+    end generate;
+  end generate;
+  
+  stub_valid_cells_out <= local3_stub_valid_cells;
+  stub_valid_out       <= local3_stub_valid;
+  
+  process( clk )
+  begin
+    if rising_edge( clk ) then
+      
+      -- LOCALCLK 3
+      
+      local3_stub_valid_cells <= local2_stub_valid_cells;
+      
+      -- OR reduction
+      local3_stub_valid <= or local2_stub_valid_cells_asvec;
+    end if;
+  end process;
+end;
+
+
+
+
+
+
+
+
 
 
 
 entity ht_stub_column is
 generic(
-    ibin_cotantheta : natural,
+    ibin_cotantheta : natural
   );
   port (
     clk          :  in std_logic;
@@ -378,11 +474,9 @@ generic(
     zG_in        :  in std_logic_vector(zG_width - 1 downto 0);
     zG_out       : out std_logic_vector(zG_width - 1 downto 0);
     
-    delayed_stubvalid_column_out : out t_valid_column;
+    delayed_stubvalid_column_out : out t_valid_column
   );
-
-
-  );
+  
   attribute ram_style: string;
   attribute use_dsp48: string;
 end;
@@ -499,11 +593,9 @@ entity ht_gradient_unit is
     
     zG_out       : out std_logic_vector(zG_width - 1 downto 0);
     
-    delayed_stubvalid_column_out : out t_valid_column;
+    delayed_stubvalid_column_out : out t_valid_column
   );
-
-
-  );
+  
   attribute ram_style: string;
   attribute use_dsp48: string;
 end;
@@ -539,12 +631,12 @@ end;
 
 entity ht_stub_ring_delay is
 generic(
-    delay : natural,
+    delay : natural
   );
   port(
     clk      :  in std_logic;
     stub_in  :  in t_stub;
-    stub_out : out t_stub;
+    stub_out : out t_stub
   );
   attribute ram_style: string;
   attribute use_dsp48: string;
@@ -649,12 +741,12 @@ end;
 
 entity ht_road_ring_delay is
 generic(
-    delay : natural,
+    delay : natural
   );
   port(
     clk      :  in std_logic;
     road_in  :  in t_road;
-    road_out : out t_road;
+    road_out : out t_road
   );
   attribute ram_style: string;
   attribute use_dsp48: string;
@@ -665,12 +757,12 @@ architecture rtl of ht_road_ring_delay is
   
   component ht_stub_ring_delay
   generic(
-      delay : natural,
+      delay : natural
     );
     port(
       clk      :  in std_logic;
       stub_in  :  in t_stub;
-      stub_out : out t_stub;
+      stub_out : out t_stub
     );
     attribute ram_style: string;
     attribute use_dsp48: string;
