@@ -106,9 +106,11 @@ end;
 
 
 
-entity ht_stub_cell_validity_block is
+
+entity ht_stub_validity_borders2cells is
   port (
     clk              :  in std_logic;
+    valid_stub_in    :  in std_logic;
     valid_borders_in :  in t_valid_border_matrix;
     valid_cells_out  : out t_valid_cell_matrix;
   );
@@ -117,7 +119,8 @@ entity ht_stub_cell_validity_block is
 end;
 
 
-architecture rtl of ht_stub_cell_validity_block is 
+architecture rtl of ht_stub_validity_borders2cells is 
+  signal local1_valid_stub        : std_logic;
   signal local1_valid_borders     : t_valid_border_matrix := null_stubvalid_bordermatrix;
   signal local2_valid_cell_matrix : t_valid_cell_matrix   := null_valid_cell_matrix;
 begin
@@ -127,15 +130,23 @@ begin
   process( clk )
   begin
     if rising_edge( clk ) then
-      
+    
       -- LOCALCLK 1
+      local1_valid_stub    <= valid_stub_in;
       local1_valid_borders <= valid_borders_in;
       
-      -- LOCALCLK 2
-      for iZtRow in 0 to nbins_zT - 1 loop
-        for iCellColumn in 0 to nbins_cotantheta loop
-          
-          
+    end if;
+  end process;
+  
+  
+  gen_cols: for iCellColumn in 0 to nbins_cotantheta generate
+    gen_rows : for iZtRow in 0 to nbins_zT - 1 generate
+      process( clk )
+      begin
+        if rising_edge( clk ) then
+        
+          -- LOCALCLK 2
+        
           -- LOOSE ACCEPTANCE POLICY (recommended)
           -- B  C  B
           -- --------
@@ -145,9 +156,9 @@ begin
           -- 0| 1 |1
           -- 0| 0 |0
           
-          local2_valid_cell_matrix[iCellColumn][iZtRow] <= local1_valid_borders[iCellColumn][iZtRow] or local1_valid_borders[iCellColumn + 1][iZtRow];
+          local2_valid_cell_matrix[iCellColumn][iZtRow] <= local1_valid_stub and (local1_valid_borders[iCellColumn][iZtRow] or local1_valid_borders[iCellColumn + 1][iZtRow]);
           
---           -- TIGHT ACCEPTANCE POLICY
+          -- TIGHT ACCEPTANCE POLICY
           -- B  C  B
           -- --------
           -- 0| 0 |0
@@ -155,8 +166,8 @@ begin
           -- 1| 1 |1
           -- 0| 0 |1
           -- 0| 0 |0
---           
---           local2_valid_cell_matrix[iCellColumn][iZtRow] <= local1_valid_borders[iCellColumn][iZtRow] and local1_valid_borders[iCellColumn + 1][iZtRow];
+          
+--           local2_valid_cell_matrix[iCellColumn][iZtRow] <= local1_valid_stub and (local1_valid_borders[iCellColumn][iZtRow] and local1_valid_borders[iCellColumn + 1][iZtRow]);
           
           
           -- NOTE: In case the stub line gradients are above 1, i.e. the jump can be larger than one cell up/down, you will have also to manage the case 
@@ -170,16 +181,18 @@ begin
           -- 0| ? |1
           -- 0| 0 |1
           
-        end loop;
-      end loop;
-    end if;
-  end process;
+        end if;
+      end process;
+    end generate;
+  end generate;
+  
 end;
 
 
 
 
-entity ht_layer_cell_validity_block is
+
+entity ht_layer_validity_stubs2layer is
   port (
     clk                   :  in std_logic;
     stubs_cellmatrices_in :  in t_valid_cell_matrixarray(n_stubs_per_roadlayer - 1 downto 0);
@@ -190,7 +203,7 @@ entity ht_layer_cell_validity_block is
 end;
 
 
-architecture rtl of ht_stub_cell_validity_block is 
+architecture rtl of ht_layer_validity_stubs2layer is 
   signal local1_stubs_cellmatrices : t_valid_cell_matrixarray(n_stubs_per_roadlayer - 1 downto 0) := ( others => null_valid_cell_matrix );
   signal local2_layer_cells        : t_valid_cell_matrix                                          := null_valid_cell_matrix;
 begin
@@ -200,7 +213,10 @@ begin
   process( clk )
   begin
     if rising_edge( clk ) then
+      
+      -- LOCALCLK 1
       local1_stubs_cellmatrices <= stubs_cellmatrices_in;
+      
     end if;
   end process;
   
@@ -209,16 +225,35 @@ begin
     gen_rows : for iZtRow in 0 to nbins_zT - 1 generate
       signal thiscell_stubs_validity : std_logic_vector(n_stubs_per_roadlayer - 1 downto 0) := ( others => '0');
     begin
-      -- This is just rewiring...
+    
+      -- Below is just rewiring the cells into the vector...
+      --       /|        /|        /|        /|
+      --      / |       / |       / |       / |
+      --     /  |      /  |      /  |      /  |
+      --    / 0 |     / 1 |     / 2 |     / 3 |  ---> thiscell_stubs_validity(0,1,2,3) for cell [4,4]
+      --   /    |    /    |    /    |    /    |
+      --  /     |   /     |   /     |   /     |
+      --  |    /    |    /    |    /    |    / 
+      --  | 0 /     | 1 /     | 2 /     | 3 /  ---> thiscell_stubs_validity(0,1,2,3) for cell [2,2]
+      --  |  /      |  /      |  /      |  /
+      --  | /       | /       | /       | /
+      --  |/        |/        |/        |/
+      --  
+      --  Stub0     Stub1     Stub2     Stub3
+      --  
       gen_layers : for iStub in 0 to n_stubs_per_roadlayer generate
         thiscell_stubs_validity[iStub] <= local1_stubs_cellmatrices[iStub][iCellColumn][iZtRow];
       end generate;
       
+      
       process( clk )
       begin
         if rising_edge( clk ) then
+          
+          -- LOCALCLK 2
           -- This is VHDL-2008 compliant
-          local2_layer_cells[iCellColumn][iZtRow] = or cell_stubs_validity;
+          local2_layer_cells[iCellColumn][iZtRow] = or thiscell_stubs_validity;
+          
         end if;
       end process;
       
@@ -229,6 +264,102 @@ end;
 
 
 
+entity ht_road_validity_layermajority is
+  generic(
+    layercount_threshold : natural := 5;
+  );
+  port (
+    clk                   :  in std_logic;
+    layer_cellmatrices_in :  in t_valid_cell_matrixarray(n_stubs_per_roadlayer - 1 downto 0);
+    road_cells_out        : out t_valid_cell_matrix;
+  );
+  attribute ram_style: string;
+  attribute use_dsp48: string;
+end;
+
+
+architecture rtl of ht_road_validity_layermajority is 
+  signal local1_layer_cellmatrices : t_valid_cell_matrixarray(n_layers - 1 downto 0) := ( others => null_valid_cell_matrix );
+  signal local2_road_cells         : t_valid_cell_matrix                                          := null_valid_cell_matrix;
+  
+  
+  function majority( hitpattern: std_logic_vector( n_layers - 1 downto 0 ); threshold: integer ) return std_logic is
+    variable counter: integer := 0;
+  begin
+    
+    for k in n_layers - 1 downto 0 loop
+      if hitpattern( k ) = '1' then
+        counter := counter + 1;
+      end if;
+    end loop;
+    
+    if counter > threshold - 1 then
+      return '1';
+    end if;
+    
+    return '0';
+  end function;
+  
+  
+begin
+  
+  road_cells_out <= local2_road_cells;
+  
+  process( clk )
+  begin
+    if rising_edge( clk ) then
+      
+      -- LOCALCLK 1
+      local1_layer_cellmatrices <= layer_cellmatrices_in;
+      
+    end if;
+  end process;
+  
+  
+  gen_cols: for iCellColumn in 0 to nbins_cotantheta generate
+    gen_rows : for iZtRow in 0 to nbins_zT - 1 generate
+      signal thiscell_layer_validity : std_logic_vector(n_layers - 1 downto 0) := ( others => '0');
+    begin
+    
+      -- Below is just rewiring the cells to the vector...
+      --       /|        /|        /|        /|        /|         /|
+      --      / |       / |       / |       / |       / |        / |
+      --     /  |      /  |      /  |      /  |      /  |       /  |
+      --    / 0 |     / 1 |     / 2 |     / 3 |     / 4 |      / 5 |  ---> thiscell_layer_validity(0,1,2,3,4,5) for cell [4,4]
+      --   /    |    /    |    /    |    /    |    /    |     /    |
+      --  /     |   /     |   /     |   /     |   /     |    /     |
+      --  |    /    |    /    |    /    |    /    |    /     |    /
+      --  | 0 /     | 1 /     | 2 /     | 3 /     | 4 /      | 5 /  ---> thiscell_layer_validity(0,1,2,3,4,5) for cell [2,2]
+      --  |  /      |  /      |  /      |  /      |  /       |  /
+      --  | /       | /       | /       | /       | /        | /
+      --  |/        |/        |/        |/        |/         |/
+      --  
+      --  Layer0    Layer1    Layer2    Layer3    Layer4    Layer5
+      --  
+      gen_layers : for iLayer in 0 to n_layers generate
+        thiscell_layer_validity[iLayer] <= local1_layer_cellmatrices[iLayer][iCellColumn][iZtRow];
+      end generate;
+      
+      
+      process( clk )
+      begin
+        if rising_edge( clk ) then
+          
+          -- LOCALCLK 2
+          -- This is VHDL-2008 compliant
+          local2_layer_cells[iCellColumn][iZtRow] = majority(thiscell_layer_validity, layercount_threshold);
+          
+        end if;
+      end process;
+      
+    end generate;
+  end generate;
+end;
+
+
+
+
+      --  
 
 
 
