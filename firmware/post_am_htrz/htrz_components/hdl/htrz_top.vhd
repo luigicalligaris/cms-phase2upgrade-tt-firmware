@@ -4,6 +4,12 @@ use ieee.numeric_std.all;
 use ieee.math_real.all;
 
 
+--
+--
+-- htrz_constants.vhd
+--
+--
+
 package htrz_constants is
   constant width_phi    : natural := 18;
   
@@ -52,6 +58,12 @@ end;
 
 
 
+
+--
+--
+-- htrz_data_types.vhd
+--
+--
 
 package htrz_data_types is
   type t_stub is 
@@ -107,7 +119,13 @@ end;
 
 
 
-entity ht_stub_validity_borders2cells is
+--
+--
+-- htrz_stub_validity_borders2cells.vhd
+--
+--
+
+entity htrz_stub_validity_borders2cells is
   port (
     clk              :  in std_logic;
     valid_stub_in    :  in std_logic;
@@ -119,7 +137,7 @@ entity ht_stub_validity_borders2cells is
 end;
 
 
-architecture rtl of ht_stub_validity_borders2cells is 
+architecture rtl of htrz_stub_validity_borders2cells is 
   signal local1_valid_stub        : std_logic;
   signal local1_valid_borders     : t_valid_border_matrix := null_stubvalid_bordermatrix;
   signal local2_valid_cell_matrix : t_valid_cell_matrix   := null_valid_cell_matrix;
@@ -192,7 +210,13 @@ end;
 
 
 
-entity ht_layer_validity_stubs2layer is
+--
+--
+-- htrz_layer_validity_stubs2layer.vhd
+--
+--
+
+entity htrz_layer_validity_stubs2layer is
   port (
     clk                   :  in std_logic;
     stubs_cellmatrices_in :  in t_valid_cell_matrixarray(n_stubs_per_roadlayer - 1 downto 0);
@@ -203,7 +227,7 @@ entity ht_layer_validity_stubs2layer is
 end;
 
 
-architecture rtl of ht_layer_validity_stubs2layer is 
+architecture rtl of htrz_layer_validity_stubs2layer is 
   signal local1_stubs_cellmatrices : t_valid_cell_matrixarray(n_stubs_per_roadlayer - 1 downto 0) := ( others => null_valid_cell_matrix );
   signal local2_layer_cells        : t_valid_cell_matrix                                          := null_valid_cell_matrix;
 begin
@@ -264,7 +288,13 @@ end;
 
 
 
-entity ht_road_validity_layermajority is
+--
+--
+-- htrz_road_validity_layermajority.vhd
+--
+--
+
+entity htrz_road_validity_layermajority is
   generic(
     layercount_threshold : natural := 5
   );
@@ -278,7 +308,7 @@ entity ht_road_validity_layermajority is
 end;
 
 
-architecture rtl of ht_road_validity_layermajority is 
+architecture rtl of htrz_road_validity_layermajority is 
   signal local1_layer_cellmatrices : t_valid_cell_matrixarray(n_layers - 1 downto 0) := ( others => null_valid_cell_matrix );
   signal local2_road_cells         : t_valid_cell_matrix                                          := null_valid_cell_matrix;
   
@@ -361,7 +391,13 @@ end;
 
 
 
-entity ht_stub_validity_stub_vs_road is
+--
+--
+-- htrz_stub_validity_stub_vs_road.vhd
+--
+--
+
+entity htrz_stub_validity_stub_vs_road is
   port (
     clk                   :  in std_logic;
     road_cells_in         :  in t_valid_cell_matrix;
@@ -374,7 +410,7 @@ entity ht_stub_validity_stub_vs_road is
 end;
 
 
-architecture rtl of ht_stub_validity_stub_vs_road is 
+architecture rtl of htrz_stub_validity_stub_vs_road is 
   signal local1_road_cells             : t_valid_cell_matrix := null_valid_cell_matrix;
   signal local1_stub_cells             : t_valid_cell_matrix := null_valid_cell_matrix;
   signal local2_stub_valid_cells       : t_valid_cell_matrix := null_valid_cell_matrix;
@@ -459,7 +495,13 @@ end;
 
 
 
-entity ht_stub_column is
+--
+--
+-- htrz_stub_column.vhd
+--
+--
+
+entity htrz_stub_column is
 generic(
     ibin_cotantheta : natural
   );
@@ -482,7 +524,7 @@ generic(
 end;
 
 
-architecture rtl of ht_stub_column is
+architecture rtl of htrz_stub_column is
   -- LOCALCLK 1
   signal local1_zT_lo_left         : std_logic_vector(zT_width - 1 downto 0) := (others => '0');
   signal local1_zT_hi_left         : std_logic_vector(zT_width - 1 downto 0) := (others => '0');
@@ -498,11 +540,6 @@ architecture rtl of ht_stub_column is
   signal local2_zT_bin_lo_right : std_logic_vector(width_zT_bin - 1 downto 0) := (others => '0');
   signal local2_zT_bin_hi_right : std_logic_vector(width_zT_bin - 1 downto 0) := (others => '0');
   
---   signal local2_zT_lo_underflow_right : std_logic;
---   signal local2_zT_lo_overflow_right  : std_logic;
---   signal local2_zT_hi_underflow_right : std_logic;
---   signal local2_zT_hi_overflow_right  : std_logic;
-  
   signal stubvalid_column : t_valid_column => null_valid_column;
   
   constant delay_stubvalid_column : natural := ( (nbins_cotantheta - 1) - ibin_cotantheta ) * 2;
@@ -516,18 +553,7 @@ begin
   -- Outputs are asynchronously bound to output registers
   zT_lo_out <= local2_zT_lo_right;
   zT_hi_out <= local2_zT_hi_right;
-  
   zG_out    <= local2_zG;
-  
-  
-  -- 
---   local2_zT_lo_underflow_right <= 
---         ( local2_zT_lo_right(bitposition_msb_overflow_guard_in_zT downto bitposition_lsb_overflow_guard_in_zT) == (bitposition_msb_overflow_guard_in_zT - bitposition_lsb_overflow_guard_in_zT + 1 downto 0 => '0') )
---       or
---         ( local2_zT_lo_right(bitposition_msb_overflow_guard_in_zT downto bitposition_lsb_overflow_guard_in_zT) == (bitposition_msb_overflow_guard_in_zT - bitposition_lsb_overflow_guard_in_zT + 1 downto 0 => '1') )
---   local2_zT_lo_overflow_right  <= 
---   local2_zT_hi_underflow_right <= local2_zT_hi_right(bitposition_msb_overflow_guard_in_zT downto bitposition_lsb_overflow_guard_in_zT)
---   local2_zT_hi_overflow_right  <= 
   
   
   process( clk )
@@ -577,7 +603,14 @@ end;
 
 
 
-entity ht_gradient_unit is
+
+--
+--
+-- htrz_gradient_unit.vhd
+--
+--
+
+entity htrz_gradient_unit is
   port (
     clk          :  in std_logic;
     
@@ -602,7 +635,7 @@ end;
 
 
 
-architecture rtl of ht_gradient_unit is
+architecture rtl of htrz_gradient_unit is
 
 
 attribute ram_style of stubIDRam: signal is "block";
@@ -625,11 +658,11 @@ end;
 
 --
 --
--- ht_stub_ring_delay.vhd
+-- htrz_stub_ring_delay.vhd
 --
 --
 
-entity ht_stub_ring_delay is
+entity htrz_stub_ring_delay is
 generic(
     delay : natural
   );
@@ -643,7 +676,7 @@ generic(
 end;
 
 
-architecture rtl of ht_stub_ring_delay is
+architecture rtl of htrz_stub_ring_delay is
   
   -- These numbers are FPGA-specific, consult the FPGA memory user guide to find out the RAM depth
   constant min_delay : natural := 1 + 1 +   0 + 1 + 1; -- {write into BRAM input reg} + {write into BRAM} + {BRAM ring delay} + {read BRAM & write into BRAM output reg} + {write to output}
@@ -735,11 +768,11 @@ end;
 
 --
 --
--- ht_road_ring_delay.vhd
+-- htrz_road_ring_delay.vhd
 --
 --
 
-entity ht_road_ring_delay is
+entity htrz_road_ring_delay is
 generic(
     delay : natural
   );
@@ -753,9 +786,9 @@ generic(
 end;
 
 
-architecture rtl of ht_road_ring_delay is
+architecture rtl of htrz_road_ring_delay is
   
-  component ht_stub_ring_delay
+  component htrz_stub_ring_delay
   generic(
       delay : natural
     );
@@ -783,7 +816,7 @@ begin
       this_stub_in                   <= stubs_in_this_layer_in[iStub];
       stubs_in_this_layer_out[iStub] <= this_stub_out;
       
-      instance_stubdelay: ht_stub_ring_delay generic map ( delay ) port map (clk, this_stub_in, this_stub_out);
+      instance_stubdelay: htrz_stub_ring_delay generic map ( delay ) port map (clk, this_stub_in, this_stub_out);
       
     end generate;
   end generate;
